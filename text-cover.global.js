@@ -1,5 +1,5 @@
 /**
- * TextCoverJs v1.0.0
+ * TextCoverJs
  *
  * Add editable text boxes over an existing rendered HTML element.
  *
@@ -11,8 +11,6 @@
  *   overlay.update(nextEntities);
  *   overlay.destroy();
  */
-
-const TEXT_COVER_VERSION = "1.0.0";
 
 const DEFAULT_FONT_STACK = [
   "system-ui",
@@ -65,6 +63,7 @@ const PANEL_TEXT = {
     undo: "Undo",
     redo: "Redo",
     save: "Save",
+    applyAll: "Apply all",
     download: "Download",
     textColor: "Text color",
     italic: "Italic",
@@ -83,7 +82,14 @@ const PANEL_TEXT = {
     expandNone: "No expansion",
     apply: "Apply",
     delete: "Delete",
-    saveSuccess: "Saved"
+    saveSuccess: "Saved",
+    applyAllSuccess: "Applied to all",
+    fontLoading: "Loading...",
+    fontLoadSuccess: "Font applied",
+    fontLoadError: "Font failed to load",
+    uploadFont: "Upload font file",
+    uploadedFont: "Uploaded:",
+    noUploadedFont: "No uploaded font"
   },
   "zh-CN": {
     panelTitle: "文本块参数",
@@ -96,6 +102,7 @@ const PANEL_TEXT = {
     undo: "撤销",
     redo: "取消撤销",
     save: "保存",
+    applyAll: "全部应用",
     download: "下载",
     textColor: "文字颜色",
     italic: "斜体",
@@ -114,7 +121,14 @@ const PANEL_TEXT = {
     expandNone: "全部不可扩展",
     apply: "应用",
     delete: "删除",
-    saveSuccess: "保存成功"
+    saveSuccess: "保存成功",
+    applyAllSuccess: "已应用到全部",
+    fontLoading: "加载中...",
+    fontLoadSuccess: "字体已应用",
+    fontLoadError: "字体加载失败",
+    uploadFont: "上传字体文件",
+    uploadedFont: "已上传:",
+    noUploadedFont: "未上传字体"
   },
   "zh-TW": {
     panelTitle: "文字區塊參數",
@@ -127,6 +141,7 @@ const PANEL_TEXT = {
     undo: "復原",
     redo: "取消復原",
     save: "儲存",
+    applyAll: "全部套用",
     download: "下載",
     textColor: "文字顏色",
     italic: "斜體",
@@ -145,7 +160,8 @@ const PANEL_TEXT = {
     expandNone: "全部不可擴展",
     apply: "套用",
     delete: "刪除",
-    saveSuccess: "儲存成功"
+    saveSuccess: "儲存成功",
+    applyAllSuccess: "已套用至全部"
   },
   ja: {
     panelTitle: "テキストブロック",
@@ -368,6 +384,7 @@ const PANEL_TEXT = {
 
 let overlaySeq = 0;
 const loadedFontFaces = new Map();
+const textOverlayControllers = new Set();
 
 function createTextOverlay(targetElement, entities = [], fontUrlOrOptions = undefined, options = undefined) {
   if (!targetElement || targetElement.nodeType !== 1) {
@@ -424,12 +441,16 @@ function createTextOverlay(targetElement, entities = [], fontUrlOrOptions = unde
   let currentEntities = assignSequentialEntityIds(normalizeEntities(entities));
   let currentLanguage = normalizeLanguage(config.language ?? currentEntities[0]?.language);
   let currentFontUrl = normalizeFontUrl(config.fontUrl);
+  let currentUploadedFontName = "";
+  const uploadedFontUrls = new Map();
   config.fontUrl = currentFontUrl || undefined;
   let resizeObserver = null;
   let destroyed = false;
   let rafId = 0;
   let parameterPanel = null;
+  let parameterPanelManualPosition = null;
   let activeEntityIndex = null;
+  let controller = null;
   let lastSnapshot = snapshotEntities(currentEntities, currentFontUrl);
   const undoStack = [];
   const redoStack = [];
@@ -497,7 +518,7 @@ function createTextOverlay(targetElement, entities = [], fontUrlOrOptions = unde
       overlay.appendChild(box);
     });
 
-    if (parameterPanel && activeEntityIndex != null) {
+    if (parameterPanel && activeEntityIndex != null && !parameterPanelManualPosition) {
       const activeBox = overlay.querySelector(`[data-index="${activeEntityIndex}"]`);
       if (activeBox) positionParameterPanel(parameterPanel, activeBox);
     }
@@ -536,6 +557,9 @@ function createTextOverlay(targetElement, entities = [], fontUrlOrOptions = unde
     document.removeEventListener("pointerdown", onDocumentPointerDown, true);
     if (resizeObserver) resizeObserver.disconnect();
     hideParameterPanel();
+    uploadedFontUrls.forEach((_, url) => URL.revokeObjectURL(url));
+    uploadedFontUrls.clear();
+    if (controller) textOverlayControllers.delete(controller);
     overlay.remove();
     toolbar?.remove();
   }
@@ -546,8 +570,14 @@ function createTextOverlay(targetElement, entities = [], fontUrlOrOptions = unde
     activeEntityIndex = index;
     currentLanguage = normalizeLanguage(entity.language ?? currentLanguage);
     syncToolbarState();
+    parameterPanelManualPosition = null;
     parameterPanel = buildParameterPanel(entity, index, getParameterPanelContext());
     document.body.appendChild(parameterPanel);
+    attachParameterPanelDrag(parameterPanel, {
+      onMove: (position) => {
+        parameterPanelManualPosition = position;
+      }
+    });
     positionParameterPanel(parameterPanel, anchorBox);
   }
 
@@ -555,10 +585,21 @@ function createTextOverlay(targetElement, entities = [], fontUrlOrOptions = unde
     if (!parameterPanel || activeEntityIndex !== index) return;
     const activeBox = overlay.querySelector(`[data-index="${index}"]`);
     if (!activeBox) return;
+    const previousManualPosition = parameterPanelManualPosition;
     parameterPanel.remove();
     parameterPanel = buildParameterPanel(entity, index, getParameterPanelContext());
     document.body.appendChild(parameterPanel);
-    positionParameterPanel(parameterPanel, activeBox);
+    attachParameterPanelDrag(parameterPanel, {
+      onMove: (position) => {
+        parameterPanelManualPosition = position;
+      }
+    });
+    if (previousManualPosition) {
+      parameterPanelManualPosition = constrainPanelPosition(parameterPanel, previousManualPosition);
+      applyPanelPosition(parameterPanel, parameterPanelManualPosition);
+    } else {
+      positionParameterPanel(parameterPanel, activeBox);
+    }
   }
 
   function getParameterPanelContext() {
@@ -576,12 +617,16 @@ function createTextOverlay(targetElement, entities = [], fontUrlOrOptions = unde
   function hideParameterPanel() {
     parameterPanel?.remove();
     parameterPanel = null;
+    parameterPanelManualPosition = null;
     activeEntityIndex = null;
   }
 
   function shouldKeepParameterPanelOpen(event) {
     const path = typeof event.composedPath === "function" ? event.composedPath() : [];
     if (parameterPanel && (path.includes(parameterPanel) || parameterPanel.contains(event.target))) {
+      return true;
+    }
+    if (toolbar && (path.includes(toolbar) || toolbar.contains(event.target))) {
       return true;
     }
 
@@ -631,6 +676,7 @@ function createTextOverlay(targetElement, entities = [], fontUrlOrOptions = unde
     const restored = parseSnapshot(snapshot);
     currentEntities = assignSequentialEntityIds(normalizeEntities(restored.entities));
     currentFontUrl = normalizeFontUrl(restored.fontUrl);
+    currentUploadedFontName = uploadedFontUrls.get(currentFontUrl) ?? "";
     config.fontUrl = currentFontUrl || undefined;
     lastSnapshot = snapshotEntities(currentEntities, currentFontUrl);
     hideParameterPanel();
@@ -709,8 +755,13 @@ function createTextOverlay(targetElement, entities = [], fontUrlOrOptions = unde
     syncToolbarState();
   }
 
-  function setFontUrl(fontUrl) {
-    currentFontUrl = normalizeFontUrl(fontUrl);
+  async function setFontUrl(fontUrl, options = {}) {
+    const nextFontUrl = normalizeFontUrl(fontUrl);
+    if (options.validate && nextFontUrl) {
+      await loadFontFace(nextFontUrl);
+    }
+    currentFontUrl = nextFontUrl;
+    currentUploadedFontName = options.uploadedFontName ?? uploadedFontUrls.get(currentFontUrl) ?? "";
     config.fontUrl = currentFontUrl || undefined;
     recordHistory();
     if (activeEntityIndex != null && currentEntities[activeEntityIndex]) {
@@ -718,6 +769,50 @@ function createTextOverlay(targetElement, entities = [], fontUrlOrOptions = unde
     }
     scheduleRender();
     syncToolbarState();
+    overlay.dispatchEvent(new CustomEvent("text-overlay-font-change", {
+      detail: { fontUrl: currentFontUrl, uploadedFontName: currentUploadedFontName }
+    }));
+  }
+
+  function getToolbarSettings() {
+    return {
+      language: currentLanguage,
+      fontUrl: currentFontUrl,
+      uploadedFontName: currentUploadedFontName
+    };
+  }
+
+  async function applyToolbarSettings(settings = {}) {
+    currentLanguage = normalizeLanguage(settings.language ?? currentLanguage);
+    config.language = currentLanguage;
+    currentEntities.forEach((entity) => {
+      entity.language = currentLanguage;
+      applyLanguageDefaults(entity);
+    });
+    recordHistory();
+    await setFontUrl(settings.fontUrl ?? "", {
+      uploadedFontName: settings.uploadedFontName ?? ""
+    });
+    if (activeEntityIndex != null && currentEntities[activeEntityIndex]) {
+      refreshParameterPanel(currentEntities[activeEntityIndex], activeEntityIndex);
+    }
+    scheduleRender();
+    syncToolbarState();
+  }
+
+  async function applyToolbarSettingsToAll() {
+    const settings = getToolbarSettings();
+    const controllers = [...textOverlayControllers];
+    await Promise.all(controllers.map((item) => item.applyToolbarSettings(settings)));
+    flashToolbarButton("applyAll");
+    showToolbarToast(panelTextForLanguage(currentLanguage, "applyAllSuccess"));
+    overlay.dispatchEvent(new CustomEvent("text-overlay-apply-all", {
+      detail: {
+        id: overlayId,
+        appliedTo: controllers.map((item) => item.id),
+        settings: { ...settings }
+      }
+    }));
   }
 
   function saveOverlay() {
@@ -751,38 +846,56 @@ function createTextOverlay(targetElement, entities = [], fontUrlOrOptions = unde
     languageMenu.className = "text-overlay-toolbar-menu";
     languageMenu.hidden = true;
 
-    const fontButton = createToolbarButton("font", toolbarIcon("font"), panelTextForLanguage(currentLanguage, "fontUrl"));
+    const fontButton = createToolbarButton("font", toolbarIcon("font"), panelTextForLanguage(currentLanguage, "uploadFont"));
     const fontMenu = document.createElement("div");
     fontMenu.className = "text-overlay-toolbar-menu text-overlay-toolbar-menu--font";
     fontMenu.hidden = true;
-    const fontField = document.createElement("label");
-    fontField.className = "text-overlay-toolbar-field";
-    const fontLabel = document.createElement("span");
-    fontLabel.dataset.role = "toolbar-font-label";
-    fontLabel.textContent = panelTextForLanguage(currentLanguage, "fontUrl");
-    const fontInput = document.createElement("input");
-    fontInput.type = "url";
-    fontInput.value = getActiveFontUrl();
-    fontInput.placeholder = "https://example.com/font.woff2";
-    fontInput.dataset.role = "toolbar-font-url";
-    fontField.append(fontLabel, fontInput);
-    const fontApply = document.createElement("button");
-    fontApply.type = "button";
-    fontApply.className = "text-overlay-toolbar-menu-item text-overlay-toolbar-apply";
-    fontApply.dataset.role = "toolbar-font-apply";
-    fontApply.textContent = panelTextForLanguage(currentLanguage, "apply");
-    fontApply.addEventListener("click", (event) => {
+    const fontUpload = document.createElement("button");
+    fontUpload.type = "button";
+    fontUpload.className = "text-overlay-toolbar-menu-item text-overlay-toolbar-apply";
+    fontUpload.dataset.role = "toolbar-font-upload";
+    fontUpload.textContent = panelTextForLanguage(currentLanguage, "uploadFont");
+    const fontFileInput = document.createElement("input");
+    fontFileInput.type = "file";
+    fontFileInput.accept = ".ttf,.otf,.woff,.woff2,font/ttf,font/otf,font/woff,font/woff2";
+    fontFileInput.hidden = true;
+    const fontStatus = document.createElement("div");
+    fontStatus.className = "text-overlay-toolbar-font-status";
+    fontStatus.dataset.role = "toolbar-font-status";
+    fontStatus.textContent = getUploadedFontStatus();
+    const applyUploadedFontFile = async (file) => {
+      if (!file) return;
+      const uploadedUrl = URL.createObjectURL(file);
+      uploadedFontUrls.set(uploadedUrl, file.name);
+      fontUpload.disabled = true;
+      fontUpload.textContent = panelTextForLanguage(currentLanguage, "fontLoading");
+      try {
+        await setFontUrl(uploadedUrl, { validate: true, uploadedFontName: file.name });
+        showToolbarToast(panelTextForLanguage(currentLanguage, "fontLoadSuccess"));
+        fontMenu.hidden = true;
+      } catch (error) {
+        uploadedFontUrls.delete(uploadedUrl);
+        URL.revokeObjectURL(uploadedUrl);
+        console.warn("Failed to load uploaded text overlay font:", error);
+        overlay.dispatchEvent(new CustomEvent("text-overlay-font-error", {
+          detail: { fontUrl: uploadedUrl, uploadedFontName: file.name, error }
+        }));
+        showToolbarToast(panelTextForLanguage(currentLanguage, "fontLoadError"), "error");
+      } finally {
+        fontFileInput.value = "";
+        fontUpload.disabled = false;
+        fontUpload.textContent = panelTextForLanguage(currentLanguage, "uploadFont");
+        syncToolbarState();
+      }
+    };
+    fontUpload.addEventListener("click", (event) => {
       event.stopPropagation();
-      setFontUrl(fontInput.value);
-      fontMenu.hidden = true;
+      fontFileInput.click();
     });
-    fontInput.addEventListener("keydown", (event) => {
-      if (event.key !== "Enter") return;
-      event.preventDefault();
-      setFontUrl(fontInput.value);
-      fontMenu.hidden = true;
+    fontFileInput.addEventListener("change", () => {
+      applyUploadedFontFile(fontFileInput.files?.[0]);
     });
-    fontMenu.append(fontField, fontApply);
+    fontMenu.append(fontUpload, fontFileInput, fontStatus);
 
     const downloadButton = createToolbarButton("download", toolbarIcon("download"), toolbarLabel("download"));
     const downloadMenu = document.createElement("div");
@@ -816,13 +929,8 @@ function createTextOverlay(targetElement, entities = [], fontUrlOrOptions = unde
 
     fontButton.addEventListener("click", (event) => {
       event.stopPropagation();
-      fontInput.value = getActiveFontUrl();
       fontMenu.hidden = !fontMenu.hidden;
       closeMenus(fontMenu.hidden ? null : fontMenu);
-      if (!fontMenu.hidden) {
-        fontInput.focus();
-        fontInput.select();
-      }
     });
 
     const addButton = createToolbarButton("add", toolbarIcon("add"), toolbarLabel("addText"));
@@ -834,8 +942,15 @@ function createTextOverlay(targetElement, entities = [], fontUrlOrOptions = unde
     const redoButton = createToolbarButton("redo", toolbarIcon("redo"), toolbarLabel("redo"));
     redoButton.addEventListener("click", redo);
 
-    const saveButton = createToolbarButton("save", toolbarIcon("save"), toolbarLabel("save"));
-    saveButton.addEventListener("click", saveOverlay);
+    const applyAllButton = createToolbarButton("applyAll", toolbarIcon("applyAll"), toolbarLabel("applyAll"));
+    applyAllButton.addEventListener("click", async () => {
+      applyAllButton.disabled = true;
+      try {
+        await applyToolbarSettingsToAll();
+      } finally {
+        applyAllButton.disabled = false;
+      }
+    });
 
     [
       ["webp", "WEBP"],
@@ -865,7 +980,7 @@ function createTextOverlay(targetElement, entities = [], fontUrlOrOptions = unde
       [addButton],
       [undoButton],
       [redoButton],
-      [saveButton],
+      [applyAllButton],
       [downloadButton, downloadMenu]
     ].forEach(([button, menu]) => {
       const item = document.createElement("div");
@@ -878,8 +993,11 @@ function createTextOverlay(targetElement, entities = [], fontUrlOrOptions = unde
     return bar;
   }
 
-  function getActiveFontUrl() {
-    return currentFontUrl;
+  function getUploadedFontStatus() {
+    if (!currentUploadedFontName) {
+      return panelTextForLanguage(currentLanguage, "noUploadedFont");
+    }
+    return `${panelTextForLanguage(currentLanguage, "uploadedFont")} ${currentUploadedFontName}`;
   }
 
   function toolbarLabel(key) {
@@ -911,22 +1029,18 @@ function createTextOverlay(targetElement, entities = [], fontUrlOrOptions = unde
     });
     const fontButton = toolbar.querySelector('[data-action="font"]');
     if (fontButton) {
-      const label = panelTextForLanguage(currentLanguage, "fontUrl");
+      const label = panelTextForLanguage(currentLanguage, "uploadFont");
       fontButton.title = label;
       fontButton.setAttribute("aria-label", label);
     }
-    const fontLabel = toolbar.querySelector('[data-role="toolbar-font-label"]');
-    if (fontLabel) fontLabel.textContent = panelTextForLanguage(currentLanguage, "fontUrl");
-    const fontInput = toolbar.querySelector('[data-role="toolbar-font-url"]');
-    if (fontInput && document.activeElement !== fontInput) {
-      fontInput.value = getActiveFontUrl();
-    }
-    const fontApply = toolbar.querySelector('[data-role="toolbar-font-apply"]');
-    if (fontApply) fontApply.textContent = panelTextForLanguage(currentLanguage, "apply");
+    const fontUpload = toolbar.querySelector('[data-role="toolbar-font-upload"]');
+    if (fontUpload) fontUpload.textContent = panelTextForLanguage(currentLanguage, "uploadFont");
+    const fontStatus = toolbar.querySelector('[data-role="toolbar-font-status"]');
+    if (fontStatus) fontStatus.textContent = getUploadedFontStatus();
     syncToolbarButtonLabel("add", toolbarLabel("addText"));
     syncToolbarButtonLabel("undo", toolbarLabel("undo"));
     syncToolbarButtonLabel("redo", toolbarLabel("redo"));
-    syncToolbarButtonLabel("save", toolbarLabel("save"));
+    syncToolbarButtonLabel("applyAll", toolbarLabel("applyAll"));
     syncToolbarButtonLabel("download", toolbarLabel("download"));
     const undoButton = toolbar.querySelector('[data-action="undo"]');
     const redoButton = toolbar.querySelector('[data-action="redo"]');
@@ -948,7 +1062,7 @@ function createTextOverlay(targetElement, entities = [], fontUrlOrOptions = unde
     window.setTimeout(() => button.classList.remove("text-overlay-toolbar-button--active"), 650);
   }
 
-  function showToolbarToast(message) {
+  function showToolbarToast(message, type = "success") {
     if (!toolbar) return;
     let toast = toolbar.querySelector(".text-overlay-toolbar-toast");
     if (!toast) {
@@ -957,6 +1071,7 @@ function createTextOverlay(targetElement, entities = [], fontUrlOrOptions = unde
       toolbar.append(toast);
     }
     toast.textContent = message;
+    toast.dataset.type = type;
     toast.hidden = false;
     window.clearTimeout(showToolbarToast.timer);
     showToolbarToast.timer = window.setTimeout(() => {
@@ -982,16 +1097,21 @@ function createTextOverlay(targetElement, entities = [], fontUrlOrOptions = unde
     }
   }
 
-  render();
-
-  return {
+  controller = {
     id: overlayId,
     element: overlay,
     update,
     destroy,
     getEntities,
-    getFontUrl
+    getFontUrl,
+    getToolbarSettings,
+    applyToolbarSettings
   };
+  textOverlayControllers.add(controller);
+
+  render();
+
+  return controller;
 }
 
 function removeTextOverlay(overlayController) {
@@ -1057,12 +1177,14 @@ function toolbarIcon(name) {
     undo: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7H4v5M4 7l5 5M20 17a7 7 0 0 0-11.8-5"/></svg>',
     redo: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 7h5v5M20 7l-5 5M4 17a7 7 0 0 1 11.8-5"/></svg>',
     save: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h12l2 2v14H5zM8 4v6h8V4M8 20v-6h8v6"/></svg>',
+    applyAll: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h10v10H7zM3 12h4M17 12h4M12 3v4M12 17v4"/><path d="m9.5 12 1.8 1.8 3.4-4"/></svg>',
     download: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v10m0 0 4-4m-4 4-4-4M5 20h14"/></svg>'
   };
   return icons[name] ?? "";
 }
 
 async function renderOverlayImage(targetElement, overlayElement, entities, config, format) {
+  await ensureConfiguredFontLoaded(config);
   const targetRect = targetElement.getBoundingClientRect();
   const width = Math.max(1, Math.round(targetRect.width));
   const height = Math.max(1, Math.round(targetRect.height));
@@ -1669,11 +1791,17 @@ function buildTextBox(entity, index, scale, config, context) {
   applyExpansionStyles(box, entity.expandDirection, metrics);
 
   if (config.fontUrl) {
-    loadFontFace(config.fontUrl).then((loadedFamily) => {
-      if (box.isConnected && loadedFamily) {
-        box.style.fontFamily = `"${loadedFamily}", ${DEFAULT_FONT_STACK}`;
-      }
-    });
+    const needsRenderAfterLoad = !loadedFontFaces.get(config.fontUrl)?.loaded;
+    loadFontFace(config.fontUrl)
+      .then((loadedFamily) => {
+        if (box.isConnected && loadedFamily) {
+          box.style.fontFamily = `"${loadedFamily}", ${DEFAULT_FONT_STACK}`;
+        }
+        if (box.isConnected && needsRenderAfterLoad) {
+          context.scheduleRender();
+        }
+      })
+      .catch(() => {});
   }
 
   if (entity.editable) {
@@ -2059,7 +2187,7 @@ function buildParameterPanel(entity, index, context) {
   const deleteButton = document.createElement("button");
   deleteButton.type = "button";
   deleteButton.className = "text-overlay-panel-delete";
-  deleteButton.textContent = "-";
+  deleteButton.textContent = "−";
   deleteButton.title = panelText(entity, "delete");
   deleteButton.setAttribute("aria-label", panelText(entity, "delete"));
   deleteButton.addEventListener("click", () => context.deleteEntity(index));
@@ -2067,7 +2195,7 @@ function buildParameterPanel(entity, index, context) {
   const closeButton = document.createElement("button");
   closeButton.type = "button";
   closeButton.className = "text-overlay-panel-close";
-  closeButton.textContent = "x";
+  closeButton.textContent = "×";
   closeButton.addEventListener("click", context.hideParameterPanel);
 
   const actions = document.createElement("div");
@@ -2172,7 +2300,7 @@ function panelText(entity, key) {
 }
 
 function panelTextForLanguage(language, key) {
-  return (PANEL_TEXT[language] ?? PANEL_TEXT["zh-CN"])[key] ?? PANEL_TEXT["zh-CN"][key] ?? key;
+  return (PANEL_TEXT[language] ?? PANEL_TEXT.en)[key] ?? PANEL_TEXT.en[key] ?? PANEL_TEXT["zh-CN"][key] ?? key;
 }
 
 function addFontSizeField(parent, entity, index, context) {
@@ -2284,7 +2412,7 @@ function appendField(parent, labelText, control) {
 
 function positionParameterPanel(panel, anchorBox) {
   const rect = anchorBox.getBoundingClientRect();
-  const panelWidth = panel.offsetWidth || 340;
+  const panelWidth = panel.offsetWidth || 360;
   const margin = 12;
   const viewportLeft = window.scrollX;
   const viewportTop = window.scrollY;
@@ -2304,8 +2432,118 @@ function positionParameterPanel(panel, anchorBox) {
   }
   top = Math.max(viewportTop + margin, top);
 
-  panel.style.left = `${left}px`;
-  panel.style.top = `${top}px`;
+  applyPanelPosition(panel, { left, top });
+}
+
+function attachParameterPanelDrag(panel, callbacks = {}) {
+  const header = panel.querySelector(".text-overlay-panel-header");
+  if (!header) return;
+
+  let drag = null;
+  const canStartDrag = (event) => event.button === 0 && !event.target.closest("button, input, select, textarea, label");
+  const startDrag = (event, pointerId = null) => {
+    event.preventDefault();
+    const rect = panel.getBoundingClientRect();
+    drag = {
+      pointerId,
+      clientX: event.clientX,
+      clientY: event.clientY,
+      left: parseFloat(panel.style.left) || rect.left + window.scrollX,
+      top: parseFloat(panel.style.top) || rect.top + window.scrollY
+    };
+    panel.classList.add("text-overlay-parameter-panel--dragging");
+  };
+  const moveDrag = (clientX, clientY) => {
+    if (!drag) return;
+    const next = constrainPanelPosition(panel, {
+      left: drag.left + clientX - drag.clientX,
+      top: drag.top + clientY - drag.clientY
+    });
+    applyPanelPosition(panel, next);
+    callbacks.onMove?.(next);
+  };
+  const clearDrag = () => {
+    panel.classList.remove("text-overlay-parameter-panel--dragging");
+    drag = null;
+  };
+
+  header.addEventListener("pointerdown", (event) => {
+    if (!canStartDrag(event)) return;
+    startDrag(event, event.pointerId);
+    header.setPointerCapture?.(event.pointerId);
+    const movePointer = (moveEvent) => {
+      if (!drag || moveEvent.pointerId !== drag.pointerId) return;
+      moveEvent.preventDefault();
+      moveDrag(moveEvent.clientX, moveEvent.clientY);
+    };
+    const finishPointer = (finishEvent) => {
+      if (!drag || finishEvent.pointerId !== drag.pointerId) return;
+      finishEvent.preventDefault();
+      header.releasePointerCapture?.(finishEvent.pointerId);
+      document.removeEventListener("pointermove", movePointer, true);
+      document.removeEventListener("pointerup", finishPointer, true);
+      document.removeEventListener("pointercancel", finishPointer, true);
+      clearDrag();
+    };
+    document.addEventListener("pointermove", movePointer, true);
+    document.addEventListener("pointerup", finishPointer, true);
+    document.addEventListener("pointercancel", finishPointer, true);
+  });
+
+  header.addEventListener("pointermove", (event) => {
+    if (!drag || event.pointerId !== drag.pointerId) return;
+    event.preventDefault();
+    moveDrag(event.clientX, event.clientY);
+  });
+
+  const finishDrag = (event) => {
+    if (!drag || event.pointerId !== drag.pointerId) return;
+    event.preventDefault();
+    header.releasePointerCapture?.(event.pointerId);
+    clearDrag();
+  };
+
+  header.addEventListener("pointerup", finishDrag);
+  header.addEventListener("pointercancel", finishDrag);
+
+  header.addEventListener("mousedown", (event) => {
+    if (drag || !canStartDrag(event)) return;
+    startDrag(event);
+    const moveMouse = (moveEvent) => {
+      if (!drag) return;
+      moveEvent.preventDefault();
+      moveDrag(moveEvent.clientX, moveEvent.clientY);
+    };
+    const finishMouse = (upEvent) => {
+      if (!drag) return;
+      upEvent.preventDefault();
+      document.removeEventListener("mousemove", moveMouse, true);
+      document.removeEventListener("mouseup", finishMouse, true);
+      clearDrag();
+    };
+    document.addEventListener("mousemove", moveMouse, true);
+    document.addEventListener("mouseup", finishMouse, true);
+  });
+}
+
+function applyPanelPosition(panel, position) {
+  panel.style.left = `${position.left}px`;
+  panel.style.top = `${position.top}px`;
+}
+
+function constrainPanelPosition(panel, position) {
+  const margin = 12;
+  const panelWidth = panel.offsetWidth || 360;
+  const panelHeight = panel.offsetHeight || 420;
+  const minLeft = window.scrollX + margin;
+  const minTop = window.scrollY + margin;
+  const maxLeft = window.scrollX + window.innerWidth - panelWidth - margin;
+  const maxTop = window.scrollY + window.innerHeight - panelHeight - margin;
+
+  return {
+    left: Math.max(minLeft, Math.min(position.left, Math.max(minLeft, maxLeft))),
+    top: Math.max(minTop, Math.min(position.top, Math.max(minTop, maxTop)))
+  };
 }
 
 function normalizeColorInput(value) {
@@ -2327,26 +2565,34 @@ function ensureParameterPanelStyles() {
     .text-overlay-parameter-panel {
       position: absolute;
       z-index: 10000;
-      width: 340px;
+      width: 360px;
       max-width: calc(100vw - 24px);
       max-height: calc(100vh - 24px);
       overflow: auto;
       box-sizing: border-box;
-      border: 1px solid rgba(15, 23, 42, 0.18);
-      background: rgba(255, 255, 255, 0.98);
-      color: #111827;
-      box-shadow: 0 12px 30px rgba(15, 23, 42, 0.18);
-      font: 13px/1.4 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      border: 1px solid rgba(15, 23, 42, 0.12);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.97);
+      color: #0f172a;
+      box-shadow: 0 18px 42px rgba(15, 23, 42, 0.18), 0 2px 8px rgba(15, 23, 42, 0.08);
+      font: 13px/1.45 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       pointer-events: auto;
+      backdrop-filter: blur(12px);
+    }
+    .text-overlay-parameter-panel--dragging {
+      user-select: none;
+      box-shadow: 0 22px 52px rgba(15, 23, 42, 0.22), 0 4px 12px rgba(15, 23, 42, 0.1);
     }
     .text-overlay-toolbar {
       display: grid;
-      gap: 6px;
-      padding: 6px;
-      border: 1px solid rgba(15, 23, 42, 0.14);
-      background: rgba(255, 255, 255, 0.96);
-      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.16);
+      gap: 4px;
+      padding: 5px;
+      border: 1px solid rgba(15, 23, 42, 0.12);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.94);
+      box-shadow: 0 14px 34px rgba(15, 23, 42, 0.18), 0 2px 8px rgba(15, 23, 42, 0.08);
       pointer-events: auto;
+      backdrop-filter: blur(12px);
     }
     .text-overlay-toolbar-item {
       position: relative;
@@ -2354,25 +2600,41 @@ function ensureParameterPanelStyles() {
     .text-overlay-toolbar-button {
       display: grid;
       place-items: center;
-      width: 30px;
-      height: 30px;
+      width: 32px;
+      height: 32px;
       padding: 0;
-      border: 1px solid #d1d5db;
-      background: #ffffff;
-      color: #111827;
+      border: 1px solid transparent;
+      border-radius: 6px;
+      background: transparent;
+      color: #334155;
       cursor: pointer;
+      transition: background 120ms ease, border-color 120ms ease, color 120ms ease, transform 120ms ease;
     }
     .text-overlay-toolbar-button:hover {
-      background: #eef2ff;
-      border-color: #93c5fd;
+      border-color: #bfdbfe;
+      background: #eff6ff;
+      color: #1d4ed8;
     }
     .text-overlay-toolbar-button:disabled {
       opacity: 0.35;
       cursor: default;
+      transform: none;
     }
     .text-overlay-toolbar-button--active {
-      background: #dcfce7;
-      border-color: #22c55e;
+      border-color: #86efac;
+      background: #ecfdf5;
+      color: #15803d;
+    }
+    .text-overlay-toolbar-button:focus-visible,
+    .text-overlay-toolbar-menu-item:focus-visible,
+    .text-overlay-panel-delete:focus-visible,
+    .text-overlay-panel-close:focus-visible,
+    .text-overlay-panel-field input:focus-visible,
+    .text-overlay-panel-field select:focus-visible,
+    .text-overlay-panel-field textarea:focus-visible,
+    .text-overlay-toolbar-field input:focus-visible {
+      outline: 2px solid #2563eb;
+      outline-offset: 2px;
     }
     .text-overlay-toolbar-button svg {
       width: 18px;
@@ -2386,78 +2648,114 @@ function ensureParameterPanelStyles() {
     .text-overlay-toolbar-menu {
       position: absolute;
       top: 0;
-      left: calc(100% + 6px);
+      right: calc(100% + 8px);
       z-index: 1;
       display: grid;
-      min-width: 112px;
-      padding: 4px;
-      border: 1px solid #d1d5db;
-      background: #ffffff;
-      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.16);
+      min-width: 148px;
+      padding: 6px;
+      border: 1px solid rgba(15, 23, 42, 0.12);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.98);
+      box-shadow: 0 16px 34px rgba(15, 23, 42, 0.18), 0 2px 8px rgba(15, 23, 42, 0.08);
+      backdrop-filter: blur(12px);
     }
     .text-overlay-toolbar-menu--font {
-      min-width: 240px;
-      gap: 6px;
-      padding: 8px;
+      min-width: 292px;
+      gap: 8px;
+      padding: 10px;
     }
     .text-overlay-toolbar-menu[hidden] {
       display: none;
     }
     .text-overlay-toolbar-field {
       display: grid;
-      gap: 5px;
-      color: #4b5563;
-      font: 12px/1.3 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      gap: 6px;
+      color: #64748b;
+      font: 12px/1.35 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
     .text-overlay-toolbar-field input {
       width: 100%;
       min-width: 0;
       box-sizing: border-box;
-      border: 1px solid #d1d5db;
-      padding: 6px 7px;
-      color: #111827;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      padding: 7px 9px;
+      color: #0f172a;
       background: #ffffff;
-      font: 13px/1.3 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font: 13px/1.35 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      transition: border-color 120ms ease, box-shadow 120ms ease;
     }
     .text-overlay-toolbar-menu-item {
-      border: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      border: 1px solid transparent;
+      border-radius: 6px;
       background: transparent;
-      color: #111827;
-      padding: 7px 9px;
+      color: #0f172a;
+      padding: 8px 10px;
       text-align: left;
       cursor: pointer;
-      font: 13px/1.3 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font: 13px/1.35 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       white-space: nowrap;
+      transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
     }
     .text-overlay-toolbar-menu-item:hover {
-      background: #eef2ff;
+      border-color: #dbeafe;
+      background: #eff6ff;
     }
     .text-overlay-toolbar-menu-item--active {
+      border-color: #bfdbfe;
       background: #dbeafe;
       color: #1d4ed8;
-      font-weight: 700;
+      font-weight: 650;
+    }
+    .text-overlay-toolbar-menu-item--active::after {
+      content: "✓";
+      color: #2563eb;
+      font-weight: 800;
     }
     .text-overlay-toolbar-menu-item--active:hover {
       background: #bfdbfe;
     }
     .text-overlay-toolbar-apply {
-      border: 1px solid #d1d5db;
-      background: #f9fafb;
-      text-align: center;
+      justify-content: center;
+      border-color: #cbd5e1;
+      background: #f8fafc;
+      color: #1e293b;
+      font-weight: 650;
+    }
+    .text-overlay-toolbar-apply:disabled {
+      opacity: 0.6;
+      cursor: default;
+    }
+    .text-overlay-toolbar-font-status {
+      overflow: hidden;
+      color: #64748b;
+      font: 12px/1.35 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
     .text-overlay-toolbar-toast {
       position: absolute;
       top: 0;
-      left: calc(100% + 8px);
+      right: calc(100% + 10px);
       min-width: 76px;
-      padding: 7px 10px;
+      padding: 8px 10px;
       border: 1px solid #bbf7d0;
+      border-radius: 8px;
       background: #f0fdf4;
       color: #166534;
-      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.14);
+      box-shadow: 0 14px 30px rgba(15, 23, 42, 0.14);
       font: 13px/1.3 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       white-space: nowrap;
       pointer-events: none;
+    }
+    .text-overlay-toolbar-toast[data-type="error"] {
+      border-color: #fecaca;
+      background: #fef2f2;
+      color: #991b1b;
     }
     .text-overlay-toolbar-toast[hidden] {
       display: none;
@@ -2468,16 +2766,21 @@ function ensureParameterPanelStyles() {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 8px;
-      padding: 10px 12px;
-      border-bottom: 1px solid #e5e7eb;
-      background: #ffffff;
+      gap: 10px;
+      padding: 12px 14px;
+      border-bottom: 1px solid #e2e8f0;
+      background: rgba(248, 250, 252, 0.98);
+      backdrop-filter: blur(12px);
+      cursor: move;
+      touch-action: none;
     }
     .text-overlay-panel-title {
       min-width: 0;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+      color: #0f172a;
+      font-size: 14px;
       font-weight: 700;
       flex: 1;
     }
@@ -2486,21 +2789,29 @@ function ensureParameterPanelStyles() {
       align-items: center;
       gap: 6px;
       flex: none;
+      cursor: default;
     }
     .text-overlay-panel-delete,
     .text-overlay-panel-close {
-      width: 26px;
-      height: 26px;
-      border: 1px solid #d1d5db;
-      background: #f9fafb;
-      color: #111827;
+      width: 28px;
+      height: 28px;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      background: #ffffff;
+      color: #475569;
       cursor: pointer;
+      font: 700 18px/1 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
     }
     .text-overlay-panel-delete {
       border-color: #fecaca;
       background: #fef2f2;
       color: #dc2626;
-      font-weight: 800;
+    }
+    .text-overlay-panel-close:hover {
+      border-color: #94a3b8;
+      background: #f8fafc;
+      color: #0f172a;
     }
     .text-overlay-panel-delete:hover {
       border-color: #f87171;
@@ -2508,18 +2819,21 @@ function ensureParameterPanelStyles() {
     }
     .text-overlay-panel-body {
       display: grid;
-      gap: 10px;
-      padding: 12px;
+      gap: 12px;
+      padding: 14px;
+      background: #ffffff;
     }
     .text-overlay-panel-field {
       display: grid;
-      grid-template-columns: 82px minmax(0, 1fr);
-      gap: 8px;
+      grid-template-columns: 96px minmax(0, 1fr);
+      gap: 10px;
       align-items: center;
     }
     .text-overlay-panel-field span,
     .text-overlay-panel-point span {
-      color: #4b5563;
+      color: #64748b;
+      font-size: 12px;
+      font-weight: 600;
     }
     .text-overlay-panel-field input,
     .text-overlay-panel-field select,
@@ -2528,11 +2842,34 @@ function ensureParameterPanelStyles() {
       width: 100%;
       min-width: 0;
       box-sizing: border-box;
-      border: 1px solid #d1d5db;
-      padding: 5px 7px;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      padding: 7px 9px;
       background: #ffffff;
-      color: #111827;
+      color: #0f172a;
       font: inherit;
+      transition: border-color 120ms ease, box-shadow 120ms ease, background 120ms ease;
+    }
+    .text-overlay-panel-field input:hover,
+    .text-overlay-panel-field select:hover,
+    .text-overlay-panel-field textarea:hover,
+    .text-overlay-panel-point input:hover,
+    .text-overlay-toolbar-field input:hover {
+      border-color: #94a3b8;
+    }
+    .text-overlay-panel-field input:disabled,
+    .text-overlay-panel-field select:disabled,
+    .text-overlay-panel-field textarea:disabled,
+    .text-overlay-panel-point input:disabled,
+    .text-overlay-toolbar-field input:disabled {
+      background: #f8fafc;
+      color: #94a3b8;
+      cursor: not-allowed;
+    }
+    .text-overlay-panel-field input[type="color"] {
+      height: 34px;
+      padding: 3px;
+      cursor: pointer;
     }
     .text-overlay-panel-field textarea {
       resize: vertical;
@@ -2548,18 +2885,21 @@ function ensureParameterPanelStyles() {
       align-items: center;
       gap: 5px;
       white-space: nowrap;
-      color: #374151;
+      color: #475569;
+      font-size: 12px;
+      font-weight: 600;
     }
     .text-overlay-panel-fieldset {
       display: grid;
       gap: 8px;
       margin: 0;
       padding: 10px;
-      border: 1px solid #e5e7eb;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
     }
     .text-overlay-panel-fieldset legend {
       padding: 0 4px;
-      color: #374151;
+      color: #475569;
       font-weight: 700;
     }
     .text-overlay-panel-point {
@@ -2572,11 +2912,29 @@ function ensureParameterPanelStyles() {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 8px;
+      padding-top: 2px;
     }
     .text-overlay-panel-checkbox {
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 7px;
+      min-height: 30px;
+      box-sizing: border-box;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      padding: 6px 8px;
+      color: #334155;
+      background: #f8fafc;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .text-overlay-panel-checkbox:hover {
+      border-color: #bfdbfe;
+      background: #eff6ff;
+    }
+    .text-overlay-panel-checkbox input,
+    .text-overlay-inline-checkbox input {
+      accent-color: #2563eb;
     }
     .text-overlay-resize-handle {
       position: absolute;
@@ -2660,11 +3018,16 @@ function selectElementContents(element) {
 function getFontFamily(config = {}) {
   if (config.fontUrl) {
     const cached = loadedFontFaces.get(config.fontUrl);
-    if (cached?.family) {
+    if (cached?.loaded && cached.family) {
       return `"${cached.family}", ${DEFAULT_FONT_STACK}`;
     }
   }
   return DEFAULT_FONT_STACK;
+}
+
+async function ensureConfiguredFontLoaded(config = {}) {
+  if (!config.fontUrl) return null;
+  return loadFontFace(config.fontUrl);
 }
 
 async function loadFontFace(fontUrl) {
@@ -2678,15 +3041,89 @@ async function loadFontFace(fontUrl) {
   }
 
   const family = `TextOverlayFont_${loadedFontFaces.size + 1}`;
-  const promise = new FontFace(family, `url("${fontUrl}")`)
-    .load()
+  const cacheEntry = { family, loaded: false, objectUrl: "", promise: null };
+  const promise = getLoadableFontSource(fontUrl, cacheEntry)
+    .then((sourceUrl) => new FontFace(family, `url("${sourceUrl}") format("${getFontFaceFormat(fontUrl)}")`).load())
     .then((fontFace) => {
       document.fonts.add(fontFace);
+      cacheEntry.loaded = true;
+      if (document.fonts?.ready) {
+        return document.fonts.ready.then(() => family);
+      }
       return family;
+    })
+    .catch((error) => {
+      if (cacheEntry.objectUrl) {
+        URL.revokeObjectURL(cacheEntry.objectUrl);
+      }
+      loadedFontFaces.delete(fontUrl);
+      throw error;
     });
 
-  loadedFontFaces.set(fontUrl, { family, promise });
+  cacheEntry.promise = promise;
+  loadedFontFaces.set(fontUrl, cacheEntry);
   return promise;
+}
+
+async function getLoadableFontSource(fontUrl, cacheEntry) {
+  const sourceUrl = getFontFaceSourceUrl(fontUrl);
+  let parsed;
+  try {
+    parsed = new URL(sourceUrl, document.baseURI);
+  } catch {
+    return sourceUrl;
+  }
+
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    return sourceUrl;
+  }
+
+  const response = await fetch(sourceUrl, { mode: "cors" });
+  if (!response.ok) {
+    throw new Error(`Unable to load font: ${response.status} ${response.statusText}`);
+  }
+
+  const blob = await response.blob();
+  const typedBlob = new Blob([blob], {
+    type: getFontMimeType(sourceUrl, blob.type)
+  });
+  cacheEntry.objectUrl = URL.createObjectURL(typedBlob);
+  return cacheEntry.objectUrl;
+}
+
+function getFontMimeType(fontUrl, fallback = "") {
+  const cleanUrl = fontUrl.split(/[?#]/, 1)[0].toLowerCase();
+  if (cleanUrl.endsWith(".woff2")) return "font/woff2";
+  if (cleanUrl.endsWith(".woff")) return "font/woff";
+  if (cleanUrl.endsWith(".otf")) return "font/otf";
+  if (cleanUrl.endsWith(".ttf")) return "font/ttf";
+  return fallback || "font/ttf";
+}
+
+function getFontFaceFormat(fontUrl) {
+  const cleanUrl = fontUrl.split(/[?#]/, 1)[0].toLowerCase();
+  if (cleanUrl.endsWith(".woff2")) return "woff2";
+  if (cleanUrl.endsWith(".woff")) return "woff";
+  if (cleanUrl.endsWith(".otf")) return "opentype";
+  return "truetype";
+}
+
+function getFontFaceSourceUrl(fontUrl) {
+  try {
+    const url = new URL(fontUrl, document.baseURI);
+    if (url.hostname !== "raw.githubusercontent.com") {
+      return fontUrl;
+    }
+
+    const [, owner, repo, ref, ...pathParts] = url.pathname.split("/");
+    if (!owner || !repo || !ref || !pathParts.length) {
+      return fontUrl;
+    }
+
+    return `https://cdn.jsdelivr.net/gh/${owner}/${repo}@${ref}/${pathParts.join("/")}`;
+  } catch {
+    return fontUrl;
+  }
 }
 
 function normalizeCssLength(value, fallback) {
@@ -2725,10 +3162,8 @@ function structuredCloneSafe(value) {
 }
 
 if (typeof window !== "undefined") {
-  createTextOverlay.version = TEXT_COVER_VERSION;
   window.createTextOverlay = createTextOverlay;
   window.removeTextOverlay = removeTextOverlay;
   window.TextOverlayDirection = Direction;
   window.TextOverlayExpandMode = ExpandMode;
-  window.TextCoverVersion = TEXT_COVER_VERSION;
 }
