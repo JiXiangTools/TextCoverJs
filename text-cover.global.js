@@ -82,6 +82,7 @@ const PANEL_TEXT = {
     expandNone: "No expansion",
     apply: "Apply",
     delete: "Delete",
+    confirmDelete: "Delete this text block?",
     saveSuccess: "Saved",
     applyAllSuccess: "Applied to all",
     fontLoading: "Loading...",
@@ -121,6 +122,7 @@ const PANEL_TEXT = {
     expandNone: "全部不可扩展",
     apply: "应用",
     delete: "删除",
+    confirmDelete: "确定删除这个文本框吗？",
     saveSuccess: "保存成功",
     applyAllSuccess: "已应用到全部",
     fontLoading: "加载中...",
@@ -160,8 +162,15 @@ const PANEL_TEXT = {
     expandNone: "全部不可擴展",
     apply: "套用",
     delete: "刪除",
+    confirmDelete: "確定刪除這個文字框嗎？",
     saveSuccess: "儲存成功",
-    applyAllSuccess: "已套用至全部"
+    applyAllSuccess: "已套用至全部",
+    fontLoading: "載入中...",
+    fontLoadSuccess: "字型已套用",
+    fontLoadError: "字型載入失敗",
+    uploadFont: "上傳字型檔",
+    uploadedFont: "已上傳:",
+    noUploadedFont: "未上傳字型"
   },
   ja: {
     panelTitle: "テキストブロック",
@@ -174,6 +183,7 @@ const PANEL_TEXT = {
     undo: "元に戻す",
     redo: "やり直す",
     save: "保存",
+    applyAll: "すべてに適用",
     download: "ダウンロード",
     textColor: "文字色",
     italic: "斜体",
@@ -192,7 +202,15 @@ const PANEL_TEXT = {
     expandNone: "拡張なし",
     apply: "適用",
     delete: "削除",
-    saveSuccess: "保存しました"
+    confirmDelete: "このテキストボックスを削除しますか？",
+    saveSuccess: "保存しました",
+    applyAllSuccess: "すべてに適用しました",
+    fontLoading: "読み込み中...",
+    fontLoadSuccess: "フォントを適用しました",
+    fontLoadError: "フォントの読み込みに失敗しました",
+    uploadFont: "フォントファイルをアップロード",
+    uploadedFont: "アップロード済み:",
+    noUploadedFont: "フォント未アップロード"
   },
   ko: {
     panelTitle: "텍스트 블록",
@@ -205,6 +223,7 @@ const PANEL_TEXT = {
     undo: "실행 취소",
     redo: "다시 실행",
     save: "저장",
+    applyAll: "전체 적용",
     download: "다운로드",
     textColor: "글자 색상",
     italic: "기울임",
@@ -223,7 +242,15 @@ const PANEL_TEXT = {
     expandNone: "확장 안 함",
     apply: "적용",
     delete: "삭제",
-    saveSuccess: "저장됨"
+    confirmDelete: "이 텍스트 상자를 삭제할까요?",
+    saveSuccess: "저장됨",
+    applyAllSuccess: "전체에 적용됨",
+    fontLoading: "불러오는 중...",
+    fontLoadSuccess: "폰트가 적용됨",
+    fontLoadError: "폰트 불러오기 실패",
+    uploadFont: "폰트 파일 업로드",
+    uploadedFont: "업로드됨:",
+    noUploadedFont: "업로드된 폰트 없음"
   },
   ru: {
     panelTitle: "Текстовый блок",
@@ -236,6 +263,7 @@ const PANEL_TEXT = {
     undo: "Отменить",
     redo: "Повторить",
     save: "Сохранить",
+    applyAll: "Применить ко всем",
     download: "Скачать",
     textColor: "Цвет текста",
     italic: "Курсив",
@@ -254,7 +282,15 @@ const PANEL_TEXT = {
     expandNone: "Без расширения",
     apply: "Применить",
     delete: "Удалить",
-    saveSuccess: "Сохранено"
+    confirmDelete: "Удалить этот текстовый блок?",
+    saveSuccess: "Сохранено",
+    applyAllSuccess: "Применено ко всем",
+    fontLoading: "Загрузка...",
+    fontLoadSuccess: "Шрифт применен",
+    fontLoadError: "Не удалось загрузить шрифт",
+    uploadFont: "Загрузить файл шрифта",
+    uploadedFont: "Загружено:",
+    noUploadedFont: "Шрифт не загружен"
   },
   fr: {
     panelTitle: "Bloc de texte",
@@ -267,6 +303,7 @@ const PANEL_TEXT = {
     undo: "Annuler",
     redo: "Rétablir",
     save: "Enregistrer",
+    applyAll: "Tout appliquer",
     download: "Télécharger",
     textColor: "Couleur",
     italic: "Italique",
@@ -285,7 +322,15 @@ const PANEL_TEXT = {
     expandNone: "Aucune extension",
     apply: "Appliquer",
     delete: "Supprimer",
-    saveSuccess: "Enregistré"
+    confirmDelete: "Supprimer ce bloc de texte ?",
+    saveSuccess: "Enregistré",
+    applyAllSuccess: "Appliqué à tous",
+    fontLoading: "Chargement...",
+    fontLoadSuccess: "Police appliquée",
+    fontLoadError: "Échec du chargement de la police",
+    uploadFont: "Importer un fichier de police",
+    uploadedFont: "Importé:",
+    noUploadedFont: "Aucune police importée"
   },
   de: {
     panelTitle: "Textblock",
@@ -298,6 +343,7 @@ const PANEL_TEXT = {
     undo: "Rückgängig",
     redo: "Wiederholen",
     save: "Speichern",
+    applyAll: "Auf alle anwenden",
     download: "Herunterladen",
     textColor: "Textfarbe",
     italic: "Kursiv",
@@ -316,7 +362,15 @@ const PANEL_TEXT = {
     expandNone: "Nicht erweitern",
     apply: "Anwenden",
     delete: "Löschen",
-    saveSuccess: "Gespeichert"
+    confirmDelete: "Diesen Textblock löschen?",
+    saveSuccess: "Gespeichert",
+    applyAllSuccess: "Auf alle angewendet",
+    fontLoading: "Wird geladen...",
+    fontLoadSuccess: "Schrift angewendet",
+    fontLoadError: "Schrift konnte nicht geladen werden",
+    uploadFont: "Schriftdatei hochladen",
+    uploadedFont: "Hochgeladen:",
+    noUploadedFont: "Keine Schrift hochgeladen"
   },
   it: {
     panelTitle: "Blocco di testo",
@@ -329,6 +383,7 @@ const PANEL_TEXT = {
     undo: "Annulla",
     redo: "Ripristina",
     save: "Salva",
+    applyAll: "Applica a tutti",
     download: "Scarica",
     textColor: "Colore testo",
     italic: "Corsivo",
@@ -347,7 +402,15 @@ const PANEL_TEXT = {
     expandNone: "Nessuna espansione",
     apply: "Applica",
     delete: "Elimina",
-    saveSuccess: "Salvato"
+    confirmDelete: "Eliminare questo blocco di testo?",
+    saveSuccess: "Salvato",
+    applyAllSuccess: "Applicato a tutti",
+    fontLoading: "Caricamento...",
+    fontLoadSuccess: "Font applicato",
+    fontLoadError: "Caricamento font non riuscito",
+    uploadFont: "Carica file font",
+    uploadedFont: "Caricato:",
+    noUploadedFont: "Nessun font caricato"
   },
   ar: {
     panelTitle: "كتلة نص",
@@ -360,6 +423,7 @@ const PANEL_TEXT = {
     undo: "تراجع",
     redo: "إعادة",
     save: "حفظ",
+    applyAll: "تطبيق على الكل",
     download: "تنزيل",
     textColor: "لون النص",
     italic: "مائل",
@@ -378,7 +442,15 @@ const PANEL_TEXT = {
     expandNone: "بدون توسيع",
     apply: "تطبيق",
     delete: "حذف",
-    saveSuccess: "تم الحفظ"
+    confirmDelete: "هل تريد حذف مربع النص هذا؟",
+    saveSuccess: "تم الحفظ",
+    applyAllSuccess: "تم التطبيق على الكل",
+    fontLoading: "جار التحميل...",
+    fontLoadSuccess: "تم تطبيق الخط",
+    fontLoadError: "فشل تحميل الخط",
+    uploadFont: "رفع ملف خط",
+    uploadedFont: "تم الرفع:",
+    noUploadedFont: "لم يتم رفع خط"
   }
 };
 
@@ -1485,7 +1557,6 @@ function drawEntityToCanvas(ctx, entity, scale, config) {
   ctx.fillStyle = entity.color || "#111111";
   ctx.font = `${entity.italic ? "italic " : ""}${entity.bold ? "700" : "400"} ${fontSize}px ${fontFamily}`;
   ctx.textBaseline = "top";
-  ctx.direction = entity.direction === Direction.RIGHT_TO_LEFT ? "rtl" : "ltr";
 
   if (entity.direction === Direction.TOP_TO_BOTTOM) {
     drawVerticalCanvasText(ctx, entity.text, metrics, fontSize, lineHeight);
@@ -1497,10 +1568,23 @@ function drawEntityToCanvas(ctx, entity, scale, config) {
 
 function drawHorizontalCanvasText(ctx, text, metrics, lineHeight, direction) {
   const lines = wrapCanvasText(ctx, text, Math.max(metrics.width, 1));
-  const x = direction === Direction.RIGHT_TO_LEFT ? metrics.width : 0;
   lines.forEach((line, index) => {
+    const lineDirection = getLineDirection(line, direction);
+    ctx.direction = lineDirection === Direction.RIGHT_TO_LEFT ? "rtl" : "ltr";
+    const x = lineDirection === Direction.RIGHT_TO_LEFT ? metrics.width : 0;
     ctx.fillText(line, x, index * lineHeight);
   });
+}
+
+function getLineDirection(text, fallbackDirection) {
+  const content = String(text);
+  if (/[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFC]/u.test(content)) {
+    return Direction.RIGHT_TO_LEFT;
+  }
+  if (/[A-Za-z\u00C0-\u024F\u0370-\u052F\u4E00-\u9FFF\u3040-\u30FF\uAC00-\uD7AF]/u.test(content)) {
+    return Direction.LEFT_TO_RIGHT;
+  }
+  return fallbackDirection === Direction.RIGHT_TO_LEFT ? Direction.RIGHT_TO_LEFT : Direction.LEFT_TO_RIGHT;
 }
 
 function drawVerticalCanvasText(ctx, text, metrics, fontSize, lineHeight) {
@@ -1781,6 +1865,7 @@ function buildTextBox(entity, index, scale, config, context) {
     whiteSpace: "pre-wrap",
     overflowWrap: "break-word",
     wordBreak: "break-word",
+    unicodeBidi: "plaintext",
     textAlign: entity.align ?? (entity.direction === Direction.RIGHT_TO_LEFT ? "right" : "left"),
     display: "flex",
     alignItems: normalizeVerticalAlign(entity.verticalAlign),
@@ -1851,12 +1936,16 @@ function applyDirectionStyles(box, direction) {
     box.style.writingMode = "vertical-rl";
     box.style.textOrientation = "mixed";
     box.style.direction = "ltr";
+    box.style.unicodeBidi = "normal";
+    box.dir = "ltr";
     return;
   }
 
   box.style.writingMode = "horizontal-tb";
   box.style.textOrientation = "mixed";
   box.style.direction = direction === Direction.RIGHT_TO_LEFT ? "rtl" : "ltr";
+  box.style.unicodeBidi = "plaintext";
+  box.dir = direction === Direction.RIGHT_TO_LEFT ? "auto" : "ltr";
 }
 
 function applyExpansionStyles(box, expandDirection, metrics) {
@@ -2279,7 +2368,10 @@ function buildParameterPanel(entity, index, context) {
   deleteButton.textContent = "−";
   deleteButton.title = panelText(entity, "delete");
   deleteButton.setAttribute("aria-label", panelText(entity, "delete"));
-  deleteButton.addEventListener("click", () => context.deleteEntity(index));
+  deleteButton.addEventListener("click", () => {
+    if (!window.confirm(panelText(entity, "confirmDelete"))) return;
+    context.deleteEntity(index);
+  });
 
   const closeButton = document.createElement("button");
   closeButton.type = "button";
