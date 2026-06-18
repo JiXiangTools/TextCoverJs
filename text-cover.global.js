@@ -1989,6 +1989,14 @@ function attachMovableBehavior(box, entity, index, scale, metrics, context) {
 function attachResizableBehavior(box, entity, index, scale, metrics, context) {
   ensureParameterPanelStyles();
 
+  const rotateHandle = document.createElement("span");
+  rotateHandle.className = "text-overlay-resize-handle text-overlay-rotate-handle";
+  rotateHandle.dataset.rotateHandle = "true";
+  rotateHandle.contentEditable = "false";
+  rotateHandle.setAttribute("aria-label", "Rotate text box");
+  rotateHandle.addEventListener("pointerdown", startRotate);
+  box.append(rotateHandle);
+
   const handles = [
     ["n", "top"],
     ["e", "right"],
@@ -2059,6 +2067,55 @@ function attachResizableBehavior(box, entity, index, scale, metrics, context) {
     document.addEventListener("pointerup", finish, true);
     document.addEventListener("pointercancel", finish, true);
   }
+
+  function startRotate(event) {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+
+    const startPoints = scalePoints(entity.points, scale);
+    const center = renderedPointFromLocal(metrics, metrics.width / 2, metrics.height / 2);
+    const start = {
+      pointerId: event.pointerId,
+      center,
+      angle: metrics.angle,
+      pointerAngle: Math.atan2(event.clientY - center.y, event.clientX - center.x),
+      points: startPoints
+    };
+    box.setPointerCapture?.(event.pointerId);
+    box.classList.add("text-overlay-box--rotating");
+
+    const move = (moveEvent) => {
+      if (moveEvent.pointerId !== start.pointerId) return;
+      moveEvent.preventDefault();
+      const pointerAngle = Math.atan2(moveEvent.clientY - start.center.y, moveEvent.clientX - start.center.x);
+      const nextAngle = start.angle + pointerAngle - start.pointerAngle;
+      setManualBoxRotation(box, metrics, start.center, nextAngle);
+      box._textOverlayRotationAngle = nextAngle;
+    };
+
+    const finish = (finishEvent) => {
+      if (finishEvent.pointerId !== start.pointerId) return;
+      finishEvent.preventDefault();
+      box.releasePointerCapture?.(finishEvent.pointerId);
+      document.removeEventListener("pointermove", move, true);
+      document.removeEventListener("pointerup", finish, true);
+      document.removeEventListener("pointercancel", finish, true);
+      box.classList.remove("text-overlay-box--rotating");
+
+      const nextAngle = box._textOverlayRotationAngle ?? start.angle;
+      delete box._textOverlayRotationAngle;
+      if (Math.abs(nextAngle - start.angle) < 0.001) return;
+
+      updateEntityPointsFromRotation(entity, start.points, start.center, nextAngle - start.angle, scale);
+      context.notifyEntityChange(entity, index);
+      context.scheduleRender();
+    };
+
+    document.addEventListener("pointermove", move, true);
+    document.addEventListener("pointerup", finish, true);
+    document.addEventListener("pointercancel", finish, true);
+  }
 }
 
 function resizeRectFromPointer(start, event, angle) {
@@ -2101,6 +2158,18 @@ function setManualBoxRect(box, metrics, rect, hideOverflow) {
   box.style.maxWidth = "none";
   box.style.maxHeight = "none";
   box.style.overflow = hideOverflow ? "hidden" : "visible";
+}
+
+function setManualBoxRotation(box, metrics, center, angle) {
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  const localX = -metrics.width / 2;
+  const localY = -metrics.height / 2;
+  const origin = {
+    x: center.x + localX * cos - localY * sin,
+    y: center.y + localX * sin + localY * cos
+  };
+  box.style.transform = `translate(${origin.x}px, ${origin.y}px) rotate(${angle}rad)`;
 }
 
 function expandRectAfterResize(box, rect, expandDirection) {
@@ -2152,6 +2221,26 @@ function updateEntityPointsFromRenderedRect(entity, metrics, rect, scale) {
     topRight: unscalePoint(topRight, scale),
     bottomLeft: unscalePoint(bottomLeft, scale),
     bottomRight: unscalePoint(bottomRight, scale)
+  };
+}
+
+function updateEntityPointsFromRotation(entity, points, center, angleDelta, scale) {
+  entity.points = Object.fromEntries(
+    Object.entries(points).map(([key, point]) => [
+      key,
+      unscalePoint(rotatePointAround(point, center, angleDelta), scale)
+    ])
+  );
+}
+
+function rotatePointAround(point, center, angle) {
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  const dx = point.x - center.x;
+  const dy = point.y - center.y;
+  return {
+    x: center.x + dx * cos - dy * sin,
+    y: center.y + dx * sin + dy * cos
   };
 }
 
@@ -2938,69 +3027,97 @@ function ensureParameterPanelStyles() {
     }
     .text-overlay-resize-handle {
       position: absolute;
-      z-index: 2;
+      z-index: 3;
       box-sizing: border-box;
-      width: 6px;
-      height: 6px;
-      border: 1px solid #2563eb;
+      width: 10px;
+      height: 10px;
+      border: 2px solid #2563eb;
+      border-radius: 999px;
       background: #ffffff;
+      box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.95), 0 2px 8px rgba(15, 23, 42, 0.28);
       pointer-events: auto;
       opacity: 0;
+      transition: opacity 120ms ease, transform 120ms ease;
     }
     .text-overlay-box--resizable:hover .text-overlay-resize-handle,
-    .text-overlay-box--resizing .text-overlay-resize-handle {
+    .text-overlay-box--resizing .text-overlay-resize-handle,
+    .text-overlay-box--rotating .text-overlay-resize-handle {
       opacity: 1;
     }
-    .text-overlay-box--resizing {
-      box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.8);
+    .text-overlay-box--resizable:hover,
+    .text-overlay-box--resizing,
+    .text-overlay-box--rotating {
+      box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.9), 0 0 0 3px rgba(255, 255, 255, 0.72);
+    }
+    .text-overlay-box--resizing,
+    .text-overlay-box--rotating {
       user-select: none;
     }
-    .text-overlay-resize-handle--n {
-      top: 0;
+    .text-overlay-rotate-handle {
+      top: 18px;
       left: 50%;
+      width: 12px;
+      height: 12px;
+      border-color: #f97316;
+      background: #fff7ed;
+      cursor: grab;
       transform: translate(-50%, -50%);
+    }
+    .text-overlay-box--rotating .text-overlay-rotate-handle {
+      cursor: grabbing;
+    }
+    .text-overlay-rotate-handle::before {
+      content: "";
+      position: absolute;
+      left: 50%;
+      bottom: 100%;
+      width: 1px;
+      height: 10px;
+      background: rgba(249, 115, 22, 0.85);
+      transform: translateX(-50%);
+    }
+    .text-overlay-resize-handle--n {
+      top: 2px;
+      left: 50%;
+      transform: translate(-50%, 0);
       cursor: ns-resize;
     }
     .text-overlay-resize-handle--e {
       top: 50%;
-      right: 0;
-      transform: translate(50%, -50%);
+      right: 2px;
+      transform: translate(0, -50%);
       cursor: ew-resize;
     }
     .text-overlay-resize-handle--s {
-      bottom: 0;
+      bottom: 2px;
       left: 50%;
-      transform: translate(-50%, 50%);
+      transform: translate(-50%, 0);
       cursor: ns-resize;
     }
     .text-overlay-resize-handle--w {
       top: 50%;
-      left: 0;
-      transform: translate(-50%, -50%);
+      left: 2px;
+      transform: translate(0, -50%);
       cursor: ew-resize;
     }
     .text-overlay-resize-handle--nw {
-      top: 0;
-      left: 0;
-      transform: translate(-50%, -50%);
+      top: 2px;
+      left: 2px;
       cursor: nwse-resize;
     }
     .text-overlay-resize-handle--ne {
-      top: 0;
-      right: 0;
-      transform: translate(50%, -50%);
+      top: 2px;
+      right: 2px;
       cursor: nesw-resize;
     }
     .text-overlay-resize-handle--se {
-      right: 0;
-      bottom: 0;
-      transform: translate(50%, 50%);
+      right: 2px;
+      bottom: 2px;
       cursor: nwse-resize;
     }
     .text-overlay-resize-handle--sw {
-      bottom: 0;
-      left: 0;
-      transform: translate(-50%, 50%);
+      bottom: 2px;
+      left: 2px;
       cursor: nesw-resize;
     }
   `;
