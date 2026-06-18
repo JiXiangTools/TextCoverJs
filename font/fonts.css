@@ -1,0 +1,136 @@
+@font-face {
+  font-family: "Roboto";
+  src: url("./roboto/Roboto[wdth,wght].ttf") format("truetype");
+  font-weight: 100 900;
+  font-stretch: 75% 100%;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Roboto";
+  src: url("./roboto/Roboto-Italic[wdth,wght].ttf") format("truetype");
+  font-weight: 100 900;
+  font-stretch: 75% 100%;
+  font-style: italic;
+}
+
+@font-face {
+  font-family: "Open Sans";
+  src: url("./opensans/OpenSans[wdth,wght].ttf") format("truetype");
+  font-weight: 300 800;
+  font-stretch: 75% 100%;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Open Sans";
+  src: url("./opensans/OpenSans-Italic[wdth,wght].ttf") format("truetype");
+  font-weight: 300 800;
+  font-stretch: 75% 100%;
+  font-style: italic;
+}
+
+@font-face {
+  font-family: "Montserrat";
+  src: url("./montserrat/Montserrat[wght].ttf") format("truetype");
+  font-weight: 100 900;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Montserrat";
+  src: url("./montserrat/Montserrat-Italic[wght].ttf") format("truetype");
+  font-weight: 100 900;
+  font-style: italic;
+}
+
+@font-face {
+  font-family: "Poppins";
+  src: url("./poppins/Poppins-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Poppins";
+  src: url("./poppins/Poppins-Bold.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Poppins";
+  src: url("./poppins/Poppins-Italic.ttf") format("truetype");
+  font-weight: 400;
+  font-style: italic;
+}
+
+@font-face {
+  font-family: "Oswald";
+  src: url("./oswald/Oswald[wght].ttf") format("truetype");
+  font-weight: 200 700;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Playfair Display";
+  src: url("./playfairdisplay/PlayfairDisplay[wght].ttf") format("truetype");
+  font-weight: 400 900;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Playfair Display";
+  src: url("./playfairdisplay/PlayfairDisplay-Italic[wght].ttf") format("truetype");
+  font-weight: 400 900;
+  font-style: italic;
+}
+
+@font-face {
+  font-family: "Source Sans 3";
+  src: url("./sourcesans3/SourceSans3[wght].ttf") format("truetype");
+  font-weight: 200 900;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Source Sans 3";
+  src: url("./sourcesans3/SourceSans3-Italic[wght].ttf") format("truetype");
+  font-weight: 200 900;
+  font-style: italic;
+}
+
+@font-face {
+  font-family: "Fira Code";
+  src: url("./firacode/FiraCode[wght].ttf") format("truetype");
+  font-weight: 300 700;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("./jetbrainsmono/JetBrainsMono[wght].ttf") format("truetype");
+  font-weight: 100 800;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("./jetbrainsmono/JetBrainsMono-Italic[wght].ttf") format("truetype");
+  font-weight: 100 800;
+  font-style: italic;
+}
+
+@font-face {
+  font-family: "Noto Sans SC";
+  src: url("./notosanssc/NotoSansSC[wght].ttf") format("truetype");
+  font-weight: 100 900;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Noto Serif SC";
+  src: url("./notoserifsc/NotoSerifSC[wght].ttf") format("truetype");
+  font-weight: 200 900;
+  font-style: normal;
+}
