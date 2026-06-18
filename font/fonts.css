@@ -134,3 +134,10 @@
   font-weight: 200 900;
   font-style: normal;
 }
+
+@font-face {
+  font-family: "SimHei";
+  src: url("./simhei/SimHei.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+}

@@ -39,11 +39,14 @@
 | JetBrains Mono | `jetbrainsmono/JetBrainsMono[wght].ttf`, `jetbrainsmono/JetBrainsMono-Italic[wght].ttf` | 代码、编辑器、等宽信息 |
 | Noto Sans SC | `notosanssc/NotoSansSC[wght].ttf` | 简体中文无衬线正文和 UI |
 | Noto Serif SC | `notoserifsc/NotoSerifSC[wght].ttf` | 简体中文衬线正文和标题 |
+| SimHei | `simhei/SimHei.ttf` | 简体中文黑体文本，以及兼容按 SimHei 设计的版式 |
 
 ## 来源和许可证
 
-这些字体均来自 Google Fonts 官方仓库：
+本目录大部分字体来自 Google Fonts 官方仓库：
 
 - https://github.com/google/fonts
 
-每个字体子目录里都保留了对应的 `OFL.txt` 许可证文件。没有拷贝 macOS 系统字体、Windows 常见商业字体或其他可能限制再分发的字体。
+这些字体子目录里都保留了对应的 `OFL.txt` 许可证文件。
+
+`simhei/SimHei.ttf` 从本机 `~/Downloads/SimHei.ttf` 复制而来。公开再分发前，请确认你拥有相应授权。

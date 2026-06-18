@@ -39,11 +39,14 @@ Then use the font families in CSS:
 | JetBrains Mono | `jetbrainsmono/JetBrainsMono[wght].ttf`, `jetbrainsmono/JetBrainsMono-Italic[wght].ttf` | Code, editor UI, and monospace data |
 | Noto Sans SC | `notosanssc/NotoSansSC[wght].ttf` | Simplified Chinese sans-serif body text and UI |
 | Noto Serif SC | `notoserifsc/NotoSerifSC[wght].ttf` | Simplified Chinese serif body text and headings |
+| SimHei | `simhei/SimHei.ttf` | Simplified Chinese blackface text and compatibility with layouts designed around SimHei |
 
 ## Source and License
 
-All fonts are from the official Google Fonts repository:
+Most fonts in this directory are from the official Google Fonts repository:
 
 - https://github.com/google/fonts
 
-Each font subdirectory keeps its corresponding `OFL.txt` license file. No macOS system fonts, common Windows commercial fonts, or other fonts with likely redistribution restrictions were copied into this directory.
+Those font subdirectories keep their corresponding `OFL.txt` license files.
+
+`simhei/SimHei.ttf` was copied from the local `~/Downloads/SimHei.ttf` file. Confirm that you have the required rights before redistributing it publicly.
